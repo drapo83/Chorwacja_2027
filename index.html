@@ -462,7 +462,7 @@
   async function saveStateForSW(s){
     if(!('caches' in window)) return;
     try{
-      const cache = await caches.open("odliczanie-v1");
+      const cache = await caches.open("odliczanie-v2");
       await cache.put("state.json", new Response(JSON.stringify(s), {headers:{'Content-Type':'application/json'}}));
     }catch(e){ /* ignore */ }
   }

@@ -2,7 +2,7 @@
 // Zadania: (1) cache offline, (2) wyświetlanie powiadomień lokalnych,
 // (3) najlepszy-możliwy background sync (Periodic Background Sync, tylko wybrane przeglądarki).
 
-const CACHE_NAME = "odliczanie-v1";
+const CACHE_NAME = "odliczanie-v2";
 const CORE_ASSETS = ["./", "./index.html", "./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -21,8 +21,37 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// STRATEGIA: index.html i manifest.json (powłoka aplikacji + konfiguracja) są
+// zawsze pobierane najpierw z sieci — dzięki temu każda Twoja edycja pliku
+// od razu widoczna jest u wszystkich, którzy mają aplikację zainstalowaną
+// i są online. Dopiero offline pokazujemy zapisaną wcześniej kopię.
+// Statyczne zasoby (ikony, czcionki) zostają cache-first — szybciej się
+// wczytują i nie muszą się odświeżać przy każdej wizycie.
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+
+  const url = new URL(event.request.url);
+  const isAppShell =
+    event.request.mode === "navigate" ||
+    url.pathname.endsWith("/index.html") ||
+    url.pathname.endsWith("/manifest.json") ||
+    url.pathname === "/" || url.pathname.endsWith("/Chorwacja_2027/") || url.pathname.endsWith("/");
+
+  if (isAppShell) {
+    event.respondWith(
+      fetch(event.request)
+        .then((resp) => {
+          if (resp && resp.ok) {
+            const copy = resp.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return resp;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const network = fetch(event.request)
