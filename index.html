@@ -97,6 +97,27 @@
     width:100%; max-width:560px;
     display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;
     margin-bottom:22px;
+    transition:max-width .25s ease, grid-template-columns .25s ease;
+  }
+  @media (orientation: landscape){
+    #app{ padding:18px 18px 26px; }
+    .topbar{ margin-bottom:16px; max-width:960px; }
+    .hero{ margin-bottom:14px; max-width:960px; }
+    #eventName{ font-size:clamp(20px, 3.6vw, 30px); }
+    .grid{
+      grid-template-columns:repeat(6, 1fr);
+      max-width:960px; gap:8px; margin-bottom:16px;
+    }
+    .cell{ padding:10px 4px 8px; }
+    .cell .num{ font-size:clamp(18px, 3.4vw, 28px); }
+    .cell .lbl{ font-size:8.5px; }
+    .progress-wrap{ max-width:960px; margin-bottom:16px; }
+    .actions{ max-width:960px; }
+  }
+  @media (min-width:640px) and (orientation: portrait){
+    .grid{ grid-template-columns:repeat(6, 1fr); max-width:900px; }
+    .progress-wrap{ max-width:900px; }
+    .actions{ max-width:900px; }
   }
   .cell{
     background:linear-gradient(180deg, var(--panel), var(--panel-2));
@@ -265,7 +286,7 @@
   <div class="actions">
     <button class="btn primary" id="notifBtn">🔔 Włącz przypomnienia</button>
     <button class="btn" id="shareBtn">🖼 Udostępnij kartę</button>
-    <button class="btn" id="installBtn" hidden>⬇ Zainstaluj</button>
+    <button class="btn" id="installBtn">⬇ Zainstaluj</button>
   </div>
 </div>
 
@@ -340,6 +361,15 @@
     <div class="pin-error" id="pinError"></div>
     <button class="btn primary" id="pinSubmit" style="width:100%;justify-content:center;">Zatwierdź</button>
     <button class="ghost" id="pinCancel">Anuluj</button>
+  </div>
+</div>
+
+<!-- INSTALL INSTRUCTIONS MODAL -->
+<div class="overlay" id="installOverlay">
+  <div class="sheet sheet-wrap">
+    <button class="close" id="closeInstall" aria-label="Zamknij">✕</button>
+    <h2>Instalacja na ekranie głównym</h2>
+    <div id="installStepsText" class="hint" style="font-size:13.5px; line-height:1.7;"></div>
   </div>
 </div>
 
@@ -961,19 +991,62 @@
 
   // ---------- Install prompt ----------
   let deferredPrompt = null;
+
+  function isStandalone(){
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+  }
+
+  function installStepsForPlatform(){
+    const ua = navigator.userAgent || "";
+    const isIOS = /iPhone|iPad|iPod/i.test(ua) && !window.MSStream;
+    const isAndroid = /Android/i.test(ua);
+    const isFirefox = /Firefox/i.test(ua);
+    if(isIOS){
+      return `Ta przeglądarka (iOS/Safari) nie oferuje automatycznego okna instalacji — zainstaluj ręcznie:<br><br>
+        1. Stuknij ikonę <b>Udostępnij</b> (kwadrat ze strzałką w górę) na dolnym pasku Safari.<br>
+        2. Przewiń listę i wybierz <b>„Dodaj do ekranu początkowego"</b>.<br>
+        3. Potwierdź przyciskiem <b>„Dodaj"</b> w prawym górnym rogu.<br><br>
+        Ikona aplikacji pojawi się na ekranie głównym telefonu.`;
+    }
+    if(isAndroid && !isFirefox){
+      return `Jeśli przycisk „Zainstaluj" nie otworzył okna automatycznie:<br><br>
+        1. Stuknij menu <b>⋮</b> w prawym górnym rogu przeglądarki.<br>
+        2. Wybierz <b>„Zainstaluj aplikację"</b> lub <b>„Dodaj do ekranu głównego"</b>.<br>
+        3. Potwierdź instalację.<br><br>
+        Jeśli tej opcji nie ma w menu, odśwież stronę i spróbuj ponownie za chwilę —
+        niektóre przeglądarki pokazują ją dopiero po kilku odwiedzinach strony.`;
+    }
+    if(isFirefox){
+      return `Firefox na telefonie nie wspiera instalacji PWA tak jak Chrome.<br><br>
+        Otwórz menu <b>⋮</b> i sprawdź opcję <b>„Zainstaluj"</b> lub <b>„Dodaj do ekranu głównego"</b>,
+        jeśli jest dostępna. Najpewniejsze działanie uzyskasz w Chrome na Androidzie.`;
+    }
+    return `1. Poszukaj ikony instalacji (⊕ lub „Zainstaluj") w pasku adresu przeglądarki.<br>
+      2. Jeśli jej nie widzisz, otwórz menu przeglądarki i sprawdź opcję <b>„Zainstaluj aplikację"</b>.`;
+  }
+
+  function showInstallInstructions(){
+    $("installStepsText").innerHTML = installStepsForPlatform();
+    $("installOverlay").classList.add("open");
+  }
+  $("closeInstall").addEventListener("click", () => $("installOverlay").classList.remove("open"));
+  $("installOverlay").addEventListener("click", (e) => { if(e.target.id === "installOverlay") $("installOverlay").classList.remove("open"); });
+
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    $("installBtn").hidden = false;
   });
   $("installBtn").addEventListener("click", async () => {
-    if(!deferredPrompt) return;
-    deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    $("installBtn").hidden = true;
+    if(deferredPrompt){
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      return;
+    }
+    showInstallInstructions();
   });
-  window.addEventListener("appinstalled", () => { $("installBtn").hidden = true; });
+  window.addEventListener("appinstalled", () => { $("installBtn").style.display = "none"; });
+  if(isStandalone()){ $("installBtn").style.display = "none"; }
 
   // ---------- Service worker ----------
   if("serviceWorker" in navigator){
