@@ -187,6 +187,34 @@
     background:rgba(255,255,255,0.03); color:var(--muted); margin-bottom:14px;
   }
 
+  .pin-sheet{ max-width:340px; text-align:center; }
+  .pin-sheet h2{ text-align:center; }
+  .pin-dots-row{ display:flex; justify-content:center; margin-bottom:8px; }
+  .pin-input{
+    width:100%; text-align:center; letter-spacing:.6em; font-size:24px;
+    font-family:var(--mono); padding:14px 12px; border-radius:9px;
+    border:1px solid var(--line); background:var(--panel-2); color:var(--text);
+  }
+  .pin-input:focus{ outline:none; border-color:var(--teal); }
+  .pin-error{
+    color:var(--danger); font-family:var(--mono); font-size:11.5px; margin-top:8px; min-height:16px;
+  }
+  .shake{ animation:shake .35s ease; }
+  @keyframes shake{
+    0%,100%{ transform:translateX(0); }
+    25%{ transform:translateX(-8px); }
+    75%{ transform:translateX(8px); }
+  }
+  .pin-sheet .btn.primary{ margin-top:14px; }
+  .pin-sheet .ghost{
+    background:none; border:none; color:var(--muted); font-family:var(--mono);
+    font-size:11.5px; margin-top:14px; cursor:pointer;
+  }
+  #pinSection .field:last-child{ margin-bottom:0; }
+  .danger-link{
+    display:block; text-align:center; margin-top:10px; color:var(--danger);
+    font-family:var(--mono); font-size:11px; text-decoration:none;
+  }
   #confetti-canvas{ position:fixed; inset:0; z-index:30; pointer-events:none; }
   #shareCanvas{ display:none; }
   .expired{ text-align:center; }
@@ -249,7 +277,7 @@
 
     <div class="field">
       <label for="inpName">Nazwa wydarzenia</label>
-      <input type="text" id="inpName" placeholder="np. Piętnaście Lat Nas" maxlength="60" />
+      <input type="text" id="inpName" placeholder="Wpisz nazwę wydarzenia" maxlength="60" />
     </div>
 
     <div class="field">
@@ -295,7 +323,23 @@
       </div>
     </div>
 
+    <div class="field">
+      <label>Bezpieczeństwo</label>
+      <div id="pinSection"></div>
+    </div>
+
     <button class="btn primary" id="saveSettings">Zapisz</button>
+  </div>
+</div>
+
+<!-- PIN GATE MODAL -->
+<div class="overlay" id="pinOverlay">
+  <div class="sheet pin-sheet">
+    <h2 id="pinTitle">Podaj PIN</h2>
+    <input type="password" id="pinInput" class="pin-input" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="••••" />
+    <div class="pin-error" id="pinError"></div>
+    <button class="btn primary" id="pinSubmit" style="width:100%;justify-content:center;">Zatwierdź</button>
+    <button class="ghost" id="pinCancel">Anuluj</button>
   </div>
 </div>
 
@@ -323,7 +367,9 @@
     iconImage: "",       // dataURL
     createdAt: new Date().toISOString(),
     lastNotifiedAt: "",
-    seenMilestones: []
+    seenMilestones: [],
+    pinSalt: "",
+    pinHash: ""
   };
 
   function loadState(){
@@ -521,12 +567,122 @@
     }
   });
 
+  // ---------- PIN: hashowanie ----------
+  async function hashPin(pin, salt){
+    const enc = new TextEncoder();
+    const buf = await crypto.subtle.digest("SHA-256", enc.encode(salt + ":" + pin));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+  }
+  function randomSalt(){
+    return Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2,"0")).join("");
+  }
+
+  // ---------- PIN gate (bramka przed wejściem do ustawień) ----------
+  function openPinGate(){
+    $("pinTitle").textContent = "Podaj PIN";
+    $("pinInput").value = "";
+    $("pinError").textContent = "";
+    $("pinOverlay").classList.add("open");
+    setTimeout(() => $("pinInput").focus(), 50);
+  }
+  function closePinGate(){ $("pinOverlay").classList.remove("open"); }
+
+  async function submitPinGate(){
+    const val = $("pinInput").value.trim();
+    if(!val){ return; }
+    const hash = await hashPin(val, state.pinSalt);
+    if(hash === state.pinHash){
+      closePinGate();
+      openSettings();
+    } else {
+      $("pinError").textContent = "Niepoprawny PIN, spróbuj ponownie.";
+      const sheet = document.querySelector("#pinOverlay .sheet");
+      sheet.classList.remove("shake"); void sheet.offsetWidth; sheet.classList.add("shake");
+      $("pinInput").value = "";
+      $("pinInput").focus();
+    }
+  }
+
+  $("pinSubmit").addEventListener("click", submitPinGate);
+  $("pinInput").addEventListener("keydown", (e) => { if(e.key === "Enter") submitPinGate(); });
+  $("pinCancel").addEventListener("click", closePinGate);
+  $("pinOverlay").addEventListener("click", (e) => { if(e.target.id === "pinOverlay") closePinGate(); });
+
+  async function handleSettingsButton(){
+    if(state.pinHash){
+      openPinGate();
+    } else {
+      openSettings();
+    }
+  }
+
+  // ---------- PIN section wewnątrz panelu ustawień ----------
+  function renderPinSection(){
+    const box = $("pinSection");
+    if(!state.pinHash){
+      box.innerHTML = `
+        <div class="hint" style="margin-top:0;margin-bottom:10px;">Ustaw PIN, aby zabezpieczyć ustawienia przed przypadkową zmianą przez inne osoby.</div>
+        <div class="row-2">
+          <input type="password" id="newPin1" class="pin-input" style="font-size:16px;letter-spacing:.3em;padding:10px;" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="Nowy PIN" />
+          <input type="password" id="newPin2" class="pin-input" style="font-size:16px;letter-spacing:.3em;padding:10px;" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="Powtórz PIN" />
+        </div>
+        <div class="pin-error" id="pinSetupError"></div>
+        <button class="btn" id="setPinBtn" style="width:100%;justify-content:center;margin-top:8px;">🔒 Ustaw PIN</button>
+      `;
+      $("setPinBtn").addEventListener("click", async () => {
+        const p1 = $("newPin1").value.trim(), p2 = $("newPin2").value.trim();
+        if(p1.length < 4){ $("pinSetupError").textContent = "PIN musi mieć co najmniej 4 cyfry."; return; }
+        if(p1 !== p2){ $("pinSetupError").textContent = "PIN-y się nie zgadzają."; return; }
+        state.pinSalt = randomSalt();
+        state.pinHash = await hashPin(p1, state.pinSalt);
+        saveState(state);
+        renderPinSection();
+      });
+    } else {
+      box.innerHTML = `
+        <div class="notif-status">Status: PIN ustawiony ✅</div>
+        <button class="btn" id="showResetPin" style="width:100%;justify-content:center;">🔑 Resetuj PIN</button>
+        <div id="resetPinForm" style="display:none;margin-top:10px;">
+          <div class="row-2">
+            <input type="password" id="resetPin1" class="pin-input" style="font-size:16px;letter-spacing:.3em;padding:10px;" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="Nowy PIN" />
+            <input type="password" id="resetPin2" class="pin-input" style="font-size:16px;letter-spacing:.3em;padding:10px;" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="Powtórz PIN" />
+          </div>
+          <div class="pin-error" id="pinResetError"></div>
+          <button class="btn primary" id="saveResetPin" style="width:100%;justify-content:center;margin-top:8px;">Zapisz nowy PIN</button>
+          <a href="#" id="removePin" class="danger-link">Usuń PIN (wyłącz zabezpieczenie)</a>
+        </div>
+      `;
+      $("showResetPin").addEventListener("click", () => {
+        const form = $("resetPinForm");
+        form.style.display = form.style.display === "none" ? "block" : "none";
+      });
+      $("saveResetPin").addEventListener("click", async () => {
+        const p1 = $("resetPin1").value.trim(), p2 = $("resetPin2").value.trim();
+        if(p1.length < 4){ $("pinResetError").textContent = "PIN musi mieć co najmniej 4 cyfry."; return; }
+        if(p1 !== p2){ $("pinResetError").textContent = "PIN-y się nie zgadzają."; return; }
+        state.pinSalt = randomSalt();
+        state.pinHash = await hashPin(p1, state.pinSalt);
+        saveState(state);
+        renderPinSection();
+      });
+      $("removePin").addEventListener("click", (e) => {
+        e.preventDefault();
+        if(confirm("Na pewno usunąć PIN? Ustawienia będą dostępne bez zabezpieczenia.")){
+          state.pinSalt = ""; state.pinHash = "";
+          saveState(state);
+          renderPinSection();
+        }
+      });
+    }
+  }
+
   // ---------- Settings modal ----------
   function openSettings(){
     $("inpName").value = state.eventName;
     $("inpDate").value = state.eventDate ? toLocalInputValue(new Date(state.eventDate)) : "";
     $("settingsOverlay").classList.add("open");
     updateNotifStatusText();
+    renderPinSection();
   }
   function closeSettings(){ $("settingsOverlay").classList.remove("open"); }
   function toLocalInputValue(d){
@@ -535,7 +691,7 @@
     return local.toISOString().slice(0,16);
   }
 
-  $("settingsBtn").addEventListener("click", openSettings);
+  $("settingsBtn").addEventListener("click", handleSettingsButton);
   $("closeSettings").addEventListener("click", closeSettings);
   $("settingsOverlay").addEventListener("click", (e) => { if(e.target.id === "settingsOverlay") closeSettings(); });
 
