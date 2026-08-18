@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0A0E12" />
+<title>Odliczanie</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" id="favicon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0A0E12;
+    --panel:#12181E;
+    --panel-2:#161D24;
+    --teal:#1CABCA;
+    --amber:#E8A33D;
+    --text:#E7EDF2;
+    --muted:#6B7785;
+    --danger:#FF6B4A;
+    --line:rgba(231,237,242,0.09);
+    --display: 'Space Grotesk', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --body: 'Inter', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:var(--body);
+    color:var(--text);
+    background:var(--bg);
+    min-height:100vh;
+    overflow-x:hidden;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #bg-layer{
+    position:fixed; inset:0; z-index:0;
+    background:
+      radial-gradient(1200px 700px at 20% -10%, rgba(28,171,202,0.14), transparent 60%),
+      radial-gradient(900px 600px at 110% 10%, rgba(232,163,61,0.10), transparent 55%),
+      linear-gradient(180deg, #0A0E12 0%, #0B1116 100%);
+    background-size:cover; background-position:center;
+    transition:background-image .4s ease;
+  }
+  #bg-layer::after{
+    content:""; position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(10,14,18,0.55) 0%, rgba(10,14,18,0.80) 65%, rgba(10,14,18,0.94) 100%);
+  }
+  #app{
+    position:relative; z-index:1;
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+    padding:28px 18px 40px;
+  }
+  .topbar{
+    width:100%; max-width:520px;
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:34px;
+  }
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:.18em;
+    color:var(--teal); text-transform:uppercase;
+  }
+  .iconbtn{
+    width:38px; height:38px; border-radius:10px;
+    border:1px solid var(--line); background:rgba(255,255,255,0.02);
+    color:var(--muted); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:.15s;
+  }
+  .iconbtn:hover{ color:var(--text); border-color:rgba(28,171,202,0.4); }
+  .hero{ width:100%; max-width:520px; text-align:center; margin-bottom:22px; }
+  #eventName{
+    font-family:var(--display); font-weight:700;
+    font-size:clamp(26px, 6vw, 40px);
+    line-height:1.1; letter-spacing:-.01em;
+  }
+  #eventDateLabel{
+    font-family:var(--mono); font-size:12.5px; color:var(--muted);
+    margin-top:8px; letter-spacing:.03em;
+  }
+  .progress-wrap{ width:100%; max-width:520px; margin-bottom:26px; }
+  .progress-track{
+    height:3px; width:100%; background:var(--line); border-radius:2px; overflow:hidden;
+  }
+  .progress-fill{
+    height:100%; width:0%;
+    background:linear-gradient(90deg, var(--teal), var(--amber));
+    transition:width .6s ease;
+  }
+  .progress-meta{
+    display:flex; justify-content:space-between; margin-top:6px;
+    font-family:var(--mono); font-size:10.5px; color:var(--muted); letter-spacing:.05em;
+  }
+  .grid{
+    width:100%; max-width:560px;
+    display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;
+    margin-bottom:22px;
+  }
+  .cell{
+    background:linear-gradient(180deg, var(--panel), var(--panel-2));
+    border:1px solid var(--line); border-radius:14px;
+    padding:16px 8px 12px; text-align:center; position:relative; overflow:hidden;
+  }
+  .cell::before{
+    content:""; position:absolute; top:0; left:0; right:0; height:2px;
+    background:linear-gradient(90deg, transparent, var(--teal), transparent);
+    opacity:.5;
+  }
+  .cell .num{
+    font-family:var(--display); font-weight:700; font-variant-numeric:tabular-nums;
+    font-size:clamp(26px, 6.5vw, 36px); color:var(--text);
+    transition:transform .18s ease;
+  }
+  .cell.tick .num{ animation:tick .35s ease; }
+  @keyframes tick{ 0%{transform:translateY(-6px); opacity:.4;} 100%{transform:translateY(0); opacity:1;} }
+  .cell .lbl{
+    font-family:var(--mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--muted); margin-top:4px;
+  }
+  .cell.seconds .num{ color:var(--amber); }
+  .milestone{
+    display:none; width:100%; max-width:520px;
+    font-family:var(--mono); font-size:12px; text-align:center;
+    color:var(--amber); background:rgba(232,163,61,0.08);
+    border:1px solid rgba(232,163,61,0.25); border-radius:10px;
+    padding:10px 12px; margin-bottom:18px;
+  }
+  .actions{
+    width:100%; max-width:520px;
+    display:flex; gap:10px; flex-wrap:wrap; justify-content:center;
+  }
+  .btn{
+    font-family:var(--mono); font-size:12px; letter-spacing:.03em;
+    padding:11px 16px; border-radius:10px; border:1px solid var(--line);
+    background:rgba(255,255,255,0.02); color:var(--text); cursor:pointer;
+    display:flex; align-items:center; gap:8px; transition:.15s;
+  }
+  .btn:hover{ border-color:rgba(28,171,202,0.45); }
+  .btn.primary{ background:var(--teal); color:#06181D; border-color:var(--teal); font-weight:600;}
+  .btn.primary:hover{ filter:brightness(1.08); }
+  .btn[hidden]{ display:none; }
+
+  /* Modal */
+  .overlay{
+    position:fixed; inset:0; background:rgba(6,9,12,0.72); backdrop-filter:blur(4px);
+    display:flex; align-items:flex-end; justify-content:center; z-index:20;
+    opacity:0; pointer-events:none; transition:opacity .2s ease;
+  }
+  .overlay.open{ opacity:1; pointer-events:auto; }
+  .sheet{
+    width:100%; max-width:560px; max-height:88vh; overflow-y:auto;
+    background:var(--panel); border:1px solid var(--line); border-bottom:none;
+    border-radius:20px 20px 0 0; padding:22px 20px 28px;
+    transform:translateY(16px); transition:transform .25s ease;
+  }
+  .overlay.open .sheet{ transform:translateY(0); }
+  .sheet h2{ font-family:var(--display); font-size:19px; margin-bottom:16px; }
+  .field{ margin-bottom:16px; }
+  .field label{
+    display:block; font-family:var(--mono); font-size:10.5px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--muted); margin-bottom:7px;
+  }
+  .field input[type="text"], .field input[type="datetime-local"]{
+    width:100%; padding:11px 12px; border-radius:9px; border:1px solid var(--line);
+    background:var(--panel-2); color:var(--text); font-family:var(--body); font-size:14.5px;
+  }
+  .field input:focus{ outline:none; border-color:var(--teal); }
+  .filerow{ display:flex; gap:10px; align-items:center; }
+  .filerow label.filebtn{
+    flex:1; text-align:center; padding:10px; border-radius:9px; border:1px dashed var(--line);
+    color:var(--muted); font-family:var(--mono); font-size:11.5px; cursor:pointer; text-transform:none;
+  }
+  .filerow label.filebtn:hover{ border-color:var(--teal); color:var(--text); }
+  .thumb{ width:44px; height:44px; border-radius:9px; object-fit:cover; border:1px solid var(--line); display:none; }
+  .hint{ font-size:11.5px; color:var(--muted); line-height:1.5; margin-top:6px; }
+  .row-2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .sheet .btn.primary{ width:100%; justify-content:center; padding:13px; margin-top:6px; }
+  .sheet .close{
+    position:absolute; top:16px; right:16px; background:none; border:none; color:var(--muted);
+    font-size:20px; cursor:pointer;
+  }
+  .sheet-wrap{ position:relative; }
+  .notif-status{
+    font-family:var(--mono); font-size:11px; padding:8px 10px; border-radius:8px;
+    background:rgba(255,255,255,0.03); color:var(--muted); margin-bottom:14px;
+  }
+
+  #confetti-canvas{ position:fixed; inset:0; z-index:30; pointer-events:none; }
+  #shareCanvas{ display:none; }
+  .expired{ text-align:center; }
+  .expired .big{ font-family:var(--display); font-size:32px; color:var(--amber); }
+
+  ::-webkit-scrollbar{ width:6px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:3px; }
+
+  @media (prefers-reduced-motion: reduce){
+    .cell.tick .num{ animation:none; }
+    #confetti-canvas{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="bg-layer"></div>
+<canvas id="confetti-canvas"></canvas>
+<canvas id="shareCanvas" width="1080" height="1350"></canvas>
+
+<div id="app">
+  <div class="topbar">
+    <span class="eyebrow">ODLICZANIE</span>
+    <button class="iconbtn" id="settingsBtn" title="Ustawienia" aria-label="Ustawienia">⚙</button>
+  </div>
+
+  <div class="hero">
+    <div id="eventName">Twoje wydarzenie</div>
+    <div id="eventDateLabel">— ustaw datę w ustawieniach —</div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-meta"><span>START</span><span id="progressPct">0%</span><span>WYDARZENIE</span></div>
+  </div>
+
+  <div id="clockGrid" class="grid">
+    <div class="cell"><div class="num" id="v-months">00</div><div class="lbl">Miesiące</div></div>
+    <div class="cell"><div class="num" id="v-weeks">00</div><div class="lbl">Tygodnie</div></div>
+    <div class="cell"><div class="num" id="v-days">00</div><div class="lbl">Dni</div></div>
+    <div class="cell"><div class="num" id="v-hours">00</div><div class="lbl">Godziny</div></div>
+    <div class="cell"><div class="num" id="v-minutes">00</div><div class="lbl">Minuty</div></div>
+    <div class="cell seconds"><div class="num" id="v-seconds">00</div><div class="lbl">Sekundy</div></div>
+  </div>
+
+  <div class="milestone" id="milestoneBox"></div>
+
+  <div class="actions">
+    <button class="btn primary" id="notifBtn">🔔 Włącz przypomnienia</button>
+    <button class="btn" id="shareBtn">🖼 Udostępnij kartę</button>
+    <button class="btn" id="installBtn" hidden>⬇ Zainstaluj</button>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="overlay" id="settingsOverlay">
+  <div class="sheet sheet-wrap">
+    <button class="close" id="closeSettings" aria-label="Zamknij">✕</button>
+    <h2>Ustawienia wydarzenia</h2>
+
+    <div class="field">
+      <label for="inpName">Nazwa wydarzenia</label>
+      <input type="text" id="inpName" placeholder="np. Piętnaście Lat Nas" maxlength="60" />
+    </div>
+
+    <div class="field">
+      <label for="inpDate">Data i godzina wydarzenia</label>
+      <input type="datetime-local" id="inpDate" />
+    </div>
+
+    <div class="field">
+      <label>Grafika tła</label>
+      <div class="filerow">
+        <img id="bgThumb" class="thumb" alt="" />
+        <label class="filebtn" for="inpBg">Wybierz zdjęcie tła…</label>
+        <input type="file" id="inpBg" accept="image/*" style="display:none" />
+      </div>
+      <div class="hint" id="bgClearHint" style="display:none">
+        <a href="#" id="clearBg" style="color:var(--teal)">Usuń zdjęcie tła</a>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Ikona aplikacji (podgląd)</label>
+      <div class="filerow">
+        <img id="iconThumb" class="thumb" alt="" />
+        <label class="filebtn" for="inpIcon">Wybierz ikonę…</label>
+        <input type="file" id="inpIcon" accept="image/*" style="display:none" />
+      </div>
+      <div class="hint">
+        Ikona zmienia się w kartach udostępniania i w przeglądarce od razu.
+        Ikona na ekranie głównym telefonu (po instalacji PWA) jest ustawiana raz z plików
+        <code>icons/icon-192.png</code> / <code>icon-512.png</code> w repozytorium —
+        by ją zmienić trwale dla wszystkich, podmień te pliki przed publikacją na GitHub Pages.
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Powiadomienia push</label>
+      <div class="notif-status" id="notifStatusText">Status: sprawdzanie…</div>
+      <div class="hint">
+        Aplikacja wysyła lokalne przypomnienie <b>raz w tygodniu</b>, a w <b>ostatnim tygodniu przed wydarzeniem — codziennie</b>.
+        Przeglądarki nie gwarantują budzenia w pełni zamkniętej aplikacji bez własnego serwera push — działa to najpewniej,
+        gdy aplikacja jest zainstalowana na ekranie głównym i od czasu do czasu otwierana; wtedy zaległe przypomnienie
+        pojawia się natychmiast po otwarciu.
+      </div>
+    </div>
+
+    <button class="btn primary" id="saveSettings">Zapisz</button>
+  </div>
+</div>
+
+<!-- SHARE MODAL -->
+<div class="overlay" id="shareOverlay">
+  <div class="sheet sheet-wrap">
+    <button class="close" id="closeShare" aria-label="Zamknij">✕</button>
+    <h2>Karta do udostępnienia</h2>
+    <img id="sharePreview" style="width:100%;border-radius:12px;border:1px solid var(--line);margin-bottom:16px;" alt="Podgląd karty" />
+    <button class="btn primary" id="downloadShare">⬇ Pobierz obraz PNG</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const STORAGE_KEY = "odliczanie_state_v1";
+
+  const defaultState = {
+    eventName: "",
+    eventDate: "",     // ISO string
+    bgImage: "",        // dataURL
+    iconImage: "",       // dataURL
+    createdAt: new Date().toISOString(),
+    lastNotifiedAt: "",
+    seenMilestones: []
+  };
+
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return {...defaultState};
+      return {...defaultState, ...JSON.parse(raw)};
+    }catch(e){ return {...defaultState}; }
+  }
+  function saveState(s){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    saveStateForSW(s);
+  }
+
+  let state = loadState();
+
+  // ---------- Cache Storage bridge for the Service Worker (best-effort background checks) ----------
+  async function saveStateForSW(s){
+    if(!('caches' in window)) return;
+    try{
+      const cache = await caches.open("odliczanie-v1");
+      await cache.put("state.json", new Response(JSON.stringify(s), {headers:{'Content-Type':'application/json'}}));
+    }catch(e){ /* ignore */ }
+  }
+
+  // ---------- Rendering ----------
+  function applyVisuals(){
+    $("eventName").textContent = state.eventName || "Twoje wydarzenie";
+    if(state.eventDate){
+      const d = new Date(state.eventDate);
+      $("eventDateLabel").textContent = d.toLocaleString('pl-PL', {
+        weekday:'long', day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit'
+      });
+    } else {
+      $("eventDateLabel").textContent = "— ustaw datę w ustawieniach —";
+    }
+    document.getElementById("bg-layer").style.backgroundImage = state.bgImage ? `url(${state.bgImage})` : "";
+    if(state.iconImage){
+      $("favicon").href = state.iconImage;
+      $("iconThumb").src = state.iconImage;
+      $("iconThumb").style.display = "block";
+    }
+    if(state.bgImage){
+      $("bgThumb").src = state.bgImage;
+      $("bgThumb").style.display = "block";
+      $("bgClearHint").style.display = "block";
+    }
+  }
+
+  function addMonths(date, n){
+    const d = new Date(date.getTime());
+    const day = d.getDate();
+    d.setMonth(d.getMonth() + n);
+    if(d.getDate() < day) d.setDate(0); // clamp month-end overflow
+    return d;
+  }
+
+  function breakdown(now, target){
+    if(target <= now) return null;
+    let months = 0;
+    let cursor = new Date(now.getTime());
+    while(addMonths(cursor, 1) <= target){
+      cursor = addMonths(cursor, 1);
+      months++;
+    }
+    let remMs = target.getTime() - cursor.getTime();
+    let totalSec = Math.floor(remMs/1000);
+    let days = Math.floor(totalSec/86400); totalSec -= days*86400;
+    let weeks = Math.floor(days/7); days -= weeks*7;
+    let hours = Math.floor(totalSec/3600); totalSec -= hours*3600;
+    let minutes = Math.floor(totalSec/60); totalSec -= minutes*60;
+    let seconds = totalSec;
+    return {months, weeks, days, hours, minutes, seconds};
+  }
+
+  const pad2 = (n) => String(n).padStart(2,'0');
+  const lastVals = {};
+  function setCell(id, val){
+    const el = $(id);
+    const cell = el.closest('.cell');
+    const str = pad2(val);
+    if(lastVals[id] !== str){
+      lastVals[id] = str;
+      el.textContent = str;
+      cell.classList.remove('tick'); void cell.offsetWidth; cell.classList.add('tick');
+    }
+  }
+
+  const MILESTONES = [180, 100, 30, 14, 7, 3, 2, 1, 0];
+
+  function checkMilestone(daysLeft){
+    if(MILESTONES.includes(daysLeft) && !state.seenMilestones.includes(daysLeft)){
+      state.seenMilestones.push(daysLeft);
+      saveState(state);
+      showMilestone(daysLeft);
+      launchConfetti();
+    }
+  }
+
+  function showMilestone(daysLeft){
+    const box = $("milestoneBox");
+    box.style.display = "block";
+    box.textContent = daysLeft === 0
+      ? "🎉 To dziś!"
+      : daysLeft === 1
+      ? "⏳ Został 1 dzień!"
+      : `🏁 Kamień milowy: zostało ${daysLeft} dni`;
+    setTimeout(() => { box.style.display = "none"; }, 8000);
+  }
+
+  function tick(){
+    const now = new Date();
+    if(!state.eventDate){
+      ["months","weeks","days","hours","minutes","seconds"].forEach(u => setCell("v-"+u, 0));
+      $("progressFill").style.width = "0%";
+      $("progressPct").textContent = "0%";
+      return;
+    }
+    const target = new Date(state.eventDate);
+    const b = breakdown(now, target);
+
+    // Progress bar: elapsed since createdAt vs total span
+    const created = new Date(state.createdAt).getTime();
+    const total = target.getTime() - created;
+    const elapsed = now.getTime() - created;
+    const pct = total > 0 ? Math.min(100, Math.max(0, (elapsed/total)*100)) : 100;
+    $("progressFill").style.width = pct.toFixed(1) + "%";
+    $("progressPct").textContent = Math.round(pct) + "%";
+
+    if(!b){
+      $("clockGrid").innerHTML = `<div class="expired"><div class="big">To już dziś! 🎉</div></div>`;
+      checkMilestone(0);
+      return;
+    }
+    setCell("v-months", b.months);
+    setCell("v-weeks", b.weeks);
+    setCell("v-days", b.days);
+    setCell("v-hours", b.hours);
+    setCell("v-minutes", b.minutes);
+    setCell("v-seconds", b.seconds);
+
+    const daysLeftTotal = Math.ceil((target.getTime() - now.getTime())/86400000);
+    checkMilestone(daysLeftTotal);
+    maybeNotifyForeground();
+  }
+
+  // ---------- Notifications ----------
+  function cadenceMs(daysLeft){ return daysLeft <= 7 ? 86400000 : 7*86400000; }
+
+  async function maybeNotifyForeground(){
+    if(Notification.permission !== "granted" || !state.eventDate) return;
+    const now = Date.now();
+    const target = new Date(state.eventDate).getTime();
+    const msLeft = target - now;
+    if(msLeft <= 0) return;
+    const daysLeft = Math.ceil(msLeft/86400000);
+    const last = state.lastNotifiedAt ? new Date(state.lastNotifiedAt).getTime() : 0;
+    if(now - last >= cadenceMs(daysLeft)){
+      const body = daysLeft === 0 ? "To dziś! 🎉" : daysLeft === 1 ? "Zostaje już tylko 1 dzień." : `Zostało ${daysLeft} dni.`;
+      try{
+        const reg = await navigator.serviceWorker.ready;
+        await reg.showNotification(state.eventName || "Odliczanie", {
+          body, icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: "odliczanie-przypomnienie", renotify:true
+        });
+      }catch(e){ /* Notification API might not support SW on this platform */ }
+      state.lastNotifiedAt = new Date().toISOString();
+      saveState(state);
+    }
+  }
+
+  function updateNotifStatusText(){
+    const p = Notification.permission;
+    $("notifStatusText").textContent = "Status: " + (p === "granted" ? "włączone ✅" : p === "denied" ? "zablokowane w przeglądarce ❌" : "nie ustawione");
+    $("notifBtn").textContent = p === "granted" ? "🔔 Przypomnienia włączone" : "🔔 Włącz przypomnienia";
+  }
+
+  $("notifBtn").addEventListener("click", async () => {
+    if(!("Notification" in window)){
+      alert("Ta przeglądarka nie obsługuje powiadomień.");
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    updateNotifStatusText();
+    if(perm === "granted"){
+      try{
+        const reg = await navigator.serviceWorker.ready;
+        if("periodicSync" in reg){
+          const status = await navigator.permissions.query({name:"periodic-background-sync"}).catch(()=>null);
+          if(!status || status.state === "granted"){
+            await reg.periodicSync.register("odliczanie-check", { minInterval: 24*60*60*1000 });
+          }
+        }
+      }catch(e){ /* not supported everywhere — foreground check still works */ }
+      maybeNotifyForeground();
+    }
+  });
+
+  // ---------- Settings modal ----------
+  function openSettings(){
+    $("inpName").value = state.eventName;
+    $("inpDate").value = state.eventDate ? toLocalInputValue(new Date(state.eventDate)) : "";
+    $("settingsOverlay").classList.add("open");
+    updateNotifStatusText();
+  }
+  function closeSettings(){ $("settingsOverlay").classList.remove("open"); }
+  function toLocalInputValue(d){
+    const off = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - off*60000);
+    return local.toISOString().slice(0,16);
+  }
+
+  $("settingsBtn").addEventListener("click", openSettings);
+  $("closeSettings").addEventListener("click", closeSettings);
+  $("settingsOverlay").addEventListener("click", (e) => { if(e.target.id === "settingsOverlay") closeSettings(); });
+
+  function fileToDataURL(file, cb){
+    const reader = new FileReader();
+    reader.onload = () => cb(reader.result);
+    reader.readAsDataURL(file);
+  }
+
+  $("inpBg").addEventListener("change", (e) => {
+    const f = e.target.files[0];
+    if(!f) return;
+    fileToDataURL(f, (url) => {
+      state.bgImage = url;
+      $("bgThumb").src = url; $("bgThumb").style.display = "block";
+      $("bgClearHint").style.display = "block";
+    });
+  });
+  $("clearBg").addEventListener("click", (e) => {
+    e.preventDefault();
+    state.bgImage = "";
+    $("bgThumb").style.display = "none";
+    $("bgClearHint").style.display = "none";
+  });
+  $("inpIcon").addEventListener("change", (e) => {
+    const f = e.target.files[0];
+    if(!f) return;
+    fileToDataURL(f, (url) => {
+      state.iconImage = url;
+      $("iconThumb").src = url; $("iconThumb").style.display = "block";
+    });
+  });
+
+  $("saveSettings").addEventListener("click", () => {
+    const name = $("inpName").value.trim();
+    const dateVal = $("inpDate").value;
+    if(!name || !dateVal){
+      alert("Podaj nazwę wydarzenia i datę.");
+      return;
+    }
+    const isNewEvent = state.eventDate !== new Date(dateVal).toISOString();
+    state.eventName = name;
+    state.eventDate = new Date(dateVal).toISOString();
+    if(isNewEvent){
+      state.createdAt = new Date().toISOString();
+      state.seenMilestones = [];
+      state.lastNotifiedAt = "";
+    }
+    saveState(state);
+    applyVisuals();
+    Object.keys(lastVals).forEach(k => delete lastVals[k]);
+    closeSettings();
+    tick();
+  });
+
+  // ---------- Share card ----------
+  function drawShareCard(){
+    const canvas = $("shareCanvas");
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width, H = canvas.height;
+
+    ctx.clearRect(0,0,W,H);
+    // background
+    if(state.bgImage){
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.max(W/img.width, H/img.height);
+        const w = img.width*scale, h = img.height*scale;
+        ctx.drawImage(img, (W-w)/2, (H-h)/2, w, h);
+        finishShareCard(ctx, W, H);
+      };
+      img.src = state.bgImage;
+    } else {
+      const grad = ctx.createLinearGradient(0,0,W,H);
+      grad.addColorStop(0, "#0A0E12");
+      grad.addColorStop(1, "#101820");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0,0,W,H);
+      finishShareCard(ctx, W, H);
+    }
+  }
+
+  function finishShareCard(ctx, W, H){
+    // dark overlay
+    const overlay = ctx.createLinearGradient(0,0,0,H);
+    overlay.addColorStop(0, "rgba(10,14,18,0.55)");
+    overlay.addColorStop(0.6, "rgba(10,14,18,0.82)");
+    overlay.addColorStop(1, "rgba(10,14,18,0.95)");
+    ctx.fillStyle = overlay;
+    ctx.fillRect(0,0,W,H);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#1CABCA";
+    ctx.font = "600 24px monospace";
+    ctx.fillText("ODLICZANIE", W/2, 160);
+
+    ctx.fillStyle = "#E7EDF2";
+    ctx.font = "700 64px sans-serif";
+    wrapText(ctx, state.eventName || "Wydarzenie", W/2, 250, W-160, 72);
+
+    if(state.eventDate){
+      const now = new Date();
+      const target = new Date(state.eventDate);
+      const b = breakdown(now, target);
+      ctx.font = "500 22px monospace";
+      ctx.fillStyle = "#6B7785";
+      ctx.fillText(target.toLocaleString('pl-PL', {day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit'}), W/2, 420);
+
+      if(b){
+        const units = [
+          [b.months,"MIESIĄCE"],[b.weeks,"TYGODNIE"],[b.days,"DNI"],
+          [b.hours,"GODZINY"],[b.minutes,"MINUTY"],[b.seconds,"SEKUNDY"]
+        ];
+        const cols = 3, cellW = (W-160)/cols, startX = 80, startY = 520, cellH = 190;
+        units.forEach(([val, lbl], i) => {
+          const col = i % cols, row = Math.floor(i/cols);
+          const cx = startX + col*cellW + cellW/2;
+          const cy = startY + row*cellH;
+          ctx.fillStyle = "rgba(255,255,255,0.03)";
+          roundRect(ctx, startX+col*cellW+10, cy-70, cellW-20, 150, 18);
+          ctx.fill();
+          ctx.fillStyle = i===5 ? "#E8A33D" : "#E7EDF2";
+          ctx.font = "700 58px sans-serif";
+          ctx.fillText(String(val).padStart(2,'0'), cx, cy+10);
+          ctx.fillStyle = "#6B7785";
+          ctx.font = "500 16px monospace";
+          ctx.fillText(lbl, cx, cy+50);
+        });
+      } else {
+        ctx.fillStyle = "#E8A33D";
+        ctx.font = "700 48px sans-serif";
+        ctx.fillText("To już dziś! 🎉", W/2, 650);
+      }
+    }
+
+    ctx.fillStyle = "#6B7785";
+    ctx.font = "500 18px monospace";
+    ctx.fillText("wygenerowano w aplikacji Odliczanie", W/2, H-60);
+
+    $("sharePreview").src = $("shareCanvas").toDataURL("image/png");
+  }
+
+  function wrapText(ctx, text, x, y, maxWidth, lineHeight){
+    const words = text.split(" ");
+    let line = "", lines = [];
+    for(const w of words){
+      const test = line + w + " ";
+      if(ctx.measureText(test).width > maxWidth && line){ lines.push(line); line = w + " "; }
+      else line = test;
+    }
+    lines.push(line);
+    lines.forEach((l, i) => ctx.fillText(l.trim(), x, y + i*lineHeight));
+  }
+  function roundRect(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  $("shareBtn").addEventListener("click", () => {
+    if(!state.eventDate){ alert("Najpierw ustaw wydarzenie."); return; }
+    drawShareCard();
+    $("shareOverlay").classList.add("open");
+  });
+  $("closeShare").addEventListener("click", () => $("shareOverlay").classList.remove("open"));
+  $("shareOverlay").addEventListener("click", (e) => { if(e.target.id === "shareOverlay") $("shareOverlay").classList.remove("open"); });
+  $("downloadShare").addEventListener("click", async () => {
+    const dataUrl = $("shareCanvas").toDataURL("image/png");
+    if(navigator.share && navigator.canShare){
+      try{
+        const blob = await (await fetch(dataUrl)).blob();
+        const file = new File([blob], "odliczanie.png", {type:"image/png"});
+        if(navigator.canShare({files:[file]})){
+          await navigator.share({files:[file], title: state.eventName});
+          return;
+        }
+      }catch(e){ /* fall through to download */ }
+    }
+    const a = document.createElement("a");
+    a.href = dataUrl; a.download = "odliczanie.png"; a.click();
+  });
+
+  // ---------- Confetti ----------
+  const confettiCanvas = $("confetti-canvas");
+  const cctx = confettiCanvas.getContext("2d");
+  function resizeConfetti(){ confettiCanvas.width = innerWidth; confettiCanvas.height = innerHeight; }
+  window.addEventListener("resize", resizeConfetti);
+  resizeConfetti();
+
+  function launchConfetti(){
+    if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const colors = ["#1CABCA","#E8A33D","#E7EDF2","#FF6B4A"];
+    const particles = Array.from({length:120}, () => ({
+      x: Math.random()*confettiCanvas.width,
+      y: -20 - Math.random()*200,
+      r: 4 + Math.random()*5,
+      c: colors[Math.floor(Math.random()*colors.length)],
+      vy: 2 + Math.random()*3,
+      vx: -1.5 + Math.random()*3,
+      rot: Math.random()*360,
+      vr: -6 + Math.random()*12
+    }));
+    let frame = 0;
+    function loop(){
+      cctx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height);
+      particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        cctx.save();
+        cctx.translate(p.x, p.y);
+        cctx.rotate(p.rot*Math.PI/180);
+        cctx.fillStyle = p.c;
+        cctx.fillRect(-p.r/2, -p.r/2, p.r, p.r*1.6);
+        cctx.restore();
+      });
+      frame++;
+      if(frame < 160) requestAnimationFrame(loop);
+      else cctx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height);
+    }
+    loop();
+  }
+
+  // ---------- Install prompt ----------
+  let deferredPrompt = null;
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    $("installBtn").hidden = false;
+  });
+  $("installBtn").addEventListener("click", async () => {
+    if(!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    $("installBtn").hidden = true;
+  });
+  window.addEventListener("appinstalled", () => { $("installBtn").hidden = true; });
+
+  // ---------- Service worker ----------
+  if("serviceWorker" in navigator){
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
+
+  // ---------- Init ----------
+  applyVisuals();
+  saveStateForSW(state);
+  if(!state.eventDate){ openSettings(); }
+  updateNotifStatusText();
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>
