@@ -357,6 +357,47 @@
 (function(){
   "use strict";
 
+  /* ========================================================================
+     KONFIGURACJA WYDARZENIA — edytuj TYLKO to miejsce, potem wgraj plik na GitHub.
+     Dzięki temu każde urządzenie, które otworzy link, od razu zobaczy gotowe
+     odliczenie i PIN, zamiast pustego formularza startowego (localStorage jest
+     osobne dla każdego urządzenia, więc dane muszą być "wpisane na stałe" tutaj).
+
+     eventName / eventDate — wypełnij, żeby ominąć ekran ustawień przy starcie.
+     eventDate — format: "2026-09-12T18:00:00+02:00" (ISO 8601, ze strefą czasową).
+     bgImage   — opcjonalnie: nazwa pliku obrazu wgranego OBOK index.html w repo,
+                 np. "tlo.jpg". Zostaw "" żeby użyć domyślnego tła.
+     pinSalt / pinHash — wygeneruj w osobnym pliku generator-pinu.html
+                 (dołączonym do paczki) i wklej tu wynik. Zostaw "" jeśli na
+                 razie nie chcesz PIN-u wpisanego na stałe — wtedy PIN
+                 ustawi się lokalnie dopiero na urządzeniu, które go poda.
+     configVersion — po KAŻDEJ zmianie w tym bloku zwiększ tę liczbę o 1.
+                 To sygnał dla już otwartych urządzeń, że mają pobrać nowe
+                 dane (inaczej trzymają się tego, co zapisały przy pierwszym
+                 uruchomieniu).
+  ========================================================================= */
+  const DEFAULT_CONFIG = {
+    configVersion: 1,
+    eventName: "Termin ustalania miejsca następnych wakacji",
+    eventDate: "2026-12-05T20:00:00+01:00",
+    bgImage: "",
+    pinSalt: "5f146d61502f4653d34173d7eda7d735",
+    pinHash: "f1ab00951edd06e67080b6e6ac771d3d26de5879d655ec441ffc8d770249ccbc"
+  };
+
+  function applyDefaultConfig(s){
+    const shouldApply = DEFAULT_CONFIG.configVersion && s._configVersion !== DEFAULT_CONFIG.configVersion;
+    if(!shouldApply) return s;
+    const dateChanged = DEFAULT_CONFIG.eventDate && DEFAULT_CONFIG.eventDate !== s.eventDate;
+    if(DEFAULT_CONFIG.eventName) s.eventName = DEFAULT_CONFIG.eventName;
+    if(DEFAULT_CONFIG.eventDate) s.eventDate = DEFAULT_CONFIG.eventDate;
+    if(DEFAULT_CONFIG.bgImage) s.bgImage = DEFAULT_CONFIG.bgImage;
+    if(DEFAULT_CONFIG.pinHash){ s.pinHash = DEFAULT_CONFIG.pinHash; s.pinSalt = DEFAULT_CONFIG.pinSalt; }
+    if(dateChanged){ s.createdAt = new Date().toISOString(); s.seenMilestones = []; s.lastNotifiedAt = ""; }
+    s._configVersion = DEFAULT_CONFIG.configVersion;
+    return s;
+  }
+
   const $ = (id) => document.getElementById(id);
   const STORAGE_KEY = "odliczanie_state_v1";
 
@@ -385,6 +426,7 @@
   }
 
   let state = loadState();
+  state = applyDefaultConfig(state);
 
   // ---------- Cache Storage bridge for the Service Worker (best-effort background checks) ----------
   async function saveStateForSW(s){
@@ -943,6 +985,7 @@
   // ---------- Init ----------
   applyVisuals();
   saveStateForSW(state);
+  saveState(state); // utrwala ewentualną migrację z DEFAULT_CONFIG
   if(!state.eventDate){ openSettings(); }
   updateNotifStatusText();
   tick();
